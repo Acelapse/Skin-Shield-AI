@@ -22,6 +22,10 @@ export const LABELS = [
   { id: "phone", name: "Phone call", expected: "no-alert" },
   { id: "skincare", name: "Skincare or shaving", expected: "no-alert" },
   { id: "working", name: "Normal work, hands away", expected: "no-alert" },
+  // Saved automatically from everyday use (source: "feedback"), not offered in the recorder.
+  { id: "confirmed", name: "Alert you confirmed", expected: "alert", auto: true },
+  { id: "missed", name: "Picking you said was missed", expected: "alert", auto: true },
+  { id: "false-alarm", name: "Alert you said wasn't picking", expected: "no-alert", auto: true },
 ];
 
 export const AREAS = ["forehead", "nose", "right cheek", "left cheek", "mouth", "chin", "jaw"];
@@ -55,6 +59,17 @@ export function unpackFrame(frame, faceIndices = FACE_POINTS_USED) {
   return { face, hands };
 }
 
+// Unpacked frames are cached per clip: tuning replays the same clips many times.
+const unpacked = new WeakMap();
+function framesOf(clip) {
+  let out = unpacked.get(clip);
+  if (!out) {
+    out = clip.frames.map((f) => ({ t: f.t, ...unpackFrame(f, clip.faceIndices) }));
+    unpacked.set(clip, out);
+  }
+  return out;
+}
+
 // Runs a clip through the same pipeline as the live app. Returns the alerts the
 // detector would have raised, with times relative to the start of the clip.
 // With `explain`, also summarises which signals were behind the flagged frames.
@@ -66,8 +81,8 @@ export function replayClip(clip, settings, { explain = false } = {}) {
   let peak = 0;
   const ex = explain ? { frames: 0, withFace: 0, withHands: 0, flagged: 0, byPinch: 0, sums: {} } : null;
   const add = (k, v) => (ex.sums[k] = (ex.sums[k] || 0) + v);
-  for (const frame of clip.frames) {
-    const { face: raw, hands } = unpackFrame(frame, clip.faceIndices);
+  for (const frame of framesOf(clip)) {
+    const { face: raw, hands } = frame;
     const face = memory.update(raw, hands.length > 0, frame.t);
     const result = evaluateFrame(face, hands, settings, clip.aspect || 4 / 3, motion, frame.t);
     peak = Math.max(peak, result.score);

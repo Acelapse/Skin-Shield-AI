@@ -68,9 +68,10 @@ export const DEFAULT_SETTINGS = {
 
 // Maps the app's user-facing settings to detector settings. Shared by the app and
 // the evaluation script so both score recordings identically.
-export function settingsFor({ sensitivity = 6, dwell = 1.5, cooldown = 10, includeMouth = true, requirePinch = true } = {}) {
+export function settingsFor({ sensitivity = 6, dwell = 1.5, cooldown = 10, includeMouth = true, requirePinch = true, spreadMin = DEFAULT_SETTINGS.spreadMin } = {}) {
   return {
     ...DEFAULT_SETTINGS,
+    spreadMin,
     threshold: 0.85 - (sensitivity - 1) * 0.055,
     proximity: 0.06 + (sensitivity - 1) * 0.015,
     dwellMs: dwell * 1000,
@@ -142,7 +143,9 @@ function toPixelSpace(points, aspect) {
 }
 
 export function describeFace(faceLandmarks, aspect = 1) {
-  const pts = toPixelSpace(faceLandmarks, aspect);
+  // Only the landmarks the detector reads are converted (about 80 of 478).
+  const pts = new Array(faceLandmarks.length);
+  for (const i of FACE_POINTS_USED) pts[i] = { x: faceLandmarks[i].x * aspect, y: faceLandmarks[i].y };
   const oval = FACE_OVAL.map((i) => pts[i]);
   const width = dist(pts[234], pts[454]);
   const height = dist(pts[10], pts[152]);

@@ -12,9 +12,10 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { DETECTOR_VERSION, settingsFor } from "../public/js/detector.js";
 import { evaluateClips, labelInfo, parseDataset, replayClip } from "../public/js/recording.js";
+import { describe, learnSettings } from "../public/js/learn.js";
 
 const args = process.argv.slice(2);
-const opts = { explain: false, sensitivity: null, dwell: 1.5, cooldown: 10, includeMouth: true, requirePinch: true };
+const opts = { spreadMin: 0.4, explain: false, sensitivity: null, dwell: 1.5, cooldown: 10, includeMouth: true, requirePinch: true };
 const paths = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -24,8 +25,9 @@ for (let i = 0; i < args.length; i++) {
   else if (a === "--no-mouth") opts.includeMouth = false;
   else if (a === "--no-pinch") opts.requirePinch = false;
   else if (a === "--explain") opts.explain = true;
+  else if (a === "--hand-shape") opts.spreadMin = Number(args[++i]);
   else if (a === "--help" || a === "-h") {
-    console.log("Usage: npm run evaluate -- [files or folders] [--sensitivity N] [--dwell S] [--cooldown S] [--no-mouth] [--no-pinch] [--explain]");
+    console.log("Usage: npm run evaluate -- [files or folders] [--sensitivity N] [--dwell S] [--cooldown S] [--hand-shape 0.4] [--no-mouth] [--no-pinch] [--explain]");
     process.exit(0);
   } else paths.push(a);
 }
@@ -59,7 +61,7 @@ const clips = [...byId.values()];
 const pos = clips.filter((c) => (c.expected || labelInfo(c.label).expected) === "alert").length;
 const totalMin = clips.reduce((s, c) => s + (c.durationMs || 0), 0) / 60000;
 console.log(`\n${clips.length} clips (${totalMin.toFixed(1)} min) from ${files.length} file(s): ${pos} should alert, ${clips.length - pos} should not.`);
-console.log(`Alert after ${opts.dwell} s, mouth ${opts.includeMouth ? "on" : "off"}, pinch-only ${opts.requirePinch ? "on" : "off"}.\n`);
+console.log(`Hand shape ${opts.spreadMin}, alert after ${opts.dwell} s, mouth ${opts.includeMouth ? "on" : "off"}, pinch-only ${opts.requirePinch ? "on" : "off"}.\n`);
 
 const pct = (v) => (v === null ? "  n/a" : `${String(Math.round(v * 100)).padStart(4)}%`);
 const sec = (ms) => (ms === null ? "  n/a" : `${(ms / 1000).toFixed(1).padStart(4)} s`);
@@ -81,6 +83,12 @@ const best = sweep.slice().sort((a, b) => (b.r.catchRate ?? 0) - (a.r.catchRate 
 const clean = sweep.filter((x) => x.r.falseAlarms === 0).sort((a, b) => (b.r.catchRate ?? 0) - (a.r.catchRate ?? 0))[0];
 console.log(`\nMost picking caught: sensitivity ${best.s} (${pct(best.r.catchRate).trim()} caught, ${best.r.falseAlarms} false alarms).`);
 if (clean && clean.s !== best.s) console.log(`Best with zero false alarms: sensitivity ${clean.s} (${pct(clean.r.catchRate).trim()} caught).`);
+const learned = learnSettings(clips, { ...opts, sensitivity: opts.sensitivity ?? 6 });
+console.log(
+  learned.improved
+    ? `What the app's learning would choose: sensitivity ${learned.best.sensitivity}, hand shape ${learned.best.spreadMin}. ${describe(learned)}`
+    : `What the app's learning would choose: ${describe(learned)}`,
+);
 if (pos === 0) console.log("Record some picking clips too, or the catch rate can't be measured.");
 if (pos === clips.length) console.log("Record some non-picking clips too (resting chin, drinking...), or false alarms can't be measured.");
 

@@ -1,5 +1,6 @@
 import { evaluateFrame, FaceMemory, MotionMeter, PickingTracker, FACE_OVAL, settingsFor } from "./detector.js";
 import { createRecorder } from "./recorder.js";
+import { createLearner } from "./learner.js";
 import { chime, flashTitle, message, notify, requestNotifications, unlockAudio } from "./alerts.js";
 import { Stats, formatAgo } from "./stats.js";
 
@@ -38,7 +39,19 @@ let fpsAt = performance.now();
 // ---------- settings ----------
 
 function loadPrefs() {
-  const defaults = { sensitivity: 6, dwell: 1.5, cooldown: 10, sound: true, notify: true, includeMouth: true, requirePinch: true, showOverlay: true };
+  const defaults = {
+    sensitivity: 6,
+    spreadMin: 0.4,
+    dwell: 1.5,
+    cooldown: 10,
+    sound: true,
+    notify: true,
+    includeMouth: true,
+    requirePinch: true,
+    showOverlay: true,
+    learn: true,
+    autoLearn: true,
+  };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") };
   } catch {
@@ -57,28 +70,44 @@ function savePrefs() {
 // Sensitivity 1..10 trades false alarms against missed episodes.
 const detectorSettings = () => settingsFor(prefs);
 
+const settingRenders = [];
+
+// Puts saved values into the settings controls (also used after learning
+// changes a setting).
+function syncSettingsForm() {
+  for (const form of [$("settings"), $("learnSettings")]) {
+    for (const el of form.elements) {
+      if (!el.name) continue;
+      if (el.type === "checkbox") el.checked = !!prefs[el.name];
+      else el.value = prefs[el.name];
+    }
+  }
+  settingRenders.forEach((r) => r());
+}
+
 function bindSettings() {
-  const form = $("settings");
   const labels = {
     sensitivity: (v) => (v <= 3 ? "Low: fewer false alarms" : v >= 8 ? "High: catches more, may misfire" : "Balanced"),
     dwell: (v) => `${v} s of picking`,
     cooldown: (v) => `${v} s`,
   };
-  for (const el of form.elements) {
-    if (!el.name) continue;
-    if (el.type === "checkbox") el.checked = !!prefs[el.name];
-    else el.value = prefs[el.name];
-    const out = form.querySelector(`[data-for="${el.name}"]`);
-    const render = () => out && (out.textContent = labels[el.name](Number(el.value)));
-    render();
-    el.addEventListener("input", async () => {
-      prefs[el.name] = el.type === "checkbox" ? el.checked : Number(el.value);
-      render();
-      savePrefs();
-      tracker.update(detectorSettings());
-      if (el.name === "notify" && el.checked) await requestNotifications();
-    });
+  for (const form of [$("settings"), $("learnSettings")]) {
+    for (const el of form.elements) {
+      if (!el.name) continue;
+      const out = form.querySelector(`[data-for="${el.name}"]`);
+      const render = () => out && (out.textContent = labels[el.name](Number(el.value)));
+      settingRenders.push(render);
+      el.addEventListener("input", async () => {
+        prefs[el.name] = el.type === "checkbox" ? el.checked : Number(el.value);
+        render();
+        savePrefs();
+        tracker.update(detectorSettings());
+        learner?.render();
+        if (el.name === "notify" && el.checked) await requestNotifications();
+      });
+    }
   }
+  syncSettingsForm();
   const show = $("showOverlay");
   show.checked = prefs.showOverlay;
   show.addEventListener("change", () => {
@@ -290,9 +319,13 @@ function tick() {
   const result = evaluateFrame(face, hands.landmarks, detectorSettings(), aspect, motion, now);
   const out = active ? tracker.push(result.score, result.zone, now) : { state: "idle", progress: 0, alert: null };
   recorder.captureFrame(now, rawFace, hands.landmarks, out.alert);
+  learner.captureFrame(now, rawFace, hands.landmarks);
   if (recording) out.alert = null;
 
-  if (out.alert) raiseAlert(out.alert);
+  if (out.alert) {
+    raiseAlert(out.alert);
+    learner.onAlert(now);
+  }
   $("meterFill").style.width = `${Math.round(out.progress * 100)}%`;
   updateStatus(face, out.state);
   if (!document.hidden) draw(face, hands.landmarks, result, out);
@@ -469,6 +502,7 @@ $("startBtn").addEventListener("click", async () => {
     $("pauseBtn").disabled = false;
     $("snoozeBtn").disabled = false;
     recorder.setEnabled(true);
+    learner.setRunning(true);
     setStatus("Watching", "on");
   } catch (err) {
     console.error(err);
@@ -492,9 +526,16 @@ $("snoozeBtn").addEventListener("click", () => {
   tracker.reset();
 });
 
-$("okBtn").addEventListener("click", closeAlert);
-$("breatheBtn").addEventListener("click", breathe);
+$("okBtn").addEventListener("click", () => {
+  learner.onAnswer("confirmed");
+  closeAlert();
+});
+$("breatheBtn").addEventListener("click", () => {
+  learner.onAnswer("confirmed");
+  breathe();
+});
 $("falseBtn").addEventListener("click", () => {
+  learner.onAnswer("false-alarm");
   if (currentEventId) stats.markFalseAlarm(currentEventId);
   renderStats();
   closeAlert();
@@ -516,11 +557,14 @@ document.addEventListener("visibilitychange", () => {
 
 $("cameraSelect").addEventListener("change", (e) => switchCamera(e.target.value));
 
+let learner = null;
+
 const recorder = createRecorder({
+  onChange: () => learner?.onClipsChanged(),
   getContext: () => ({
     running,
     prefs: { ...prefs },
-    settings: { sensitivity: prefs.sensitivity, dwell: prefs.dwell, cooldown: prefs.cooldown, includeMouth: prefs.includeMouth, requirePinch: prefs.requirePinch },
+    settings: { sensitivity: prefs.sensitivity, spreadMin: prefs.spreadMin, dwell: prefs.dwell, cooldown: prefs.cooldown, includeMouth: prefs.includeMouth, requirePinch: prefs.requirePinch },
     aspect: video.videoWidth / video.videoHeight || 4 / 3,
     camera: $("cameraSelect").selectedOptions[0]?.textContent || "",
   }),
@@ -536,6 +580,27 @@ const recorder = createRecorder({
   },
 });
 navigator.mediaDevices?.addEventListener?.("devicechange", listCameras);
+
+learner = createLearner({
+  getPrefs: () => ({ ...prefs }),
+  applyPrefs: (patch) => {
+    Object.assign(prefs, patch);
+    savePrefs();
+    syncSettingsForm();
+    tracker.update(detectorSettings());
+    learner.render();
+  },
+  getContext: () => ({
+    aspect: video.videoWidth / video.videoHeight || 4 / 3,
+    camera: $("cameraSelect").selectedOptions[0]?.textContent || "",
+    settings: { sensitivity: prefs.sensitivity, spreadMin: prefs.spreadMin, dwell: prefs.dwell, cooldown: prefs.cooldown, includeMouth: prefs.includeMouth, requirePinch: prefs.requirePinch },
+  }),
+  recorder,
+});
+learner.onClipsChanged();
+
+// For automated tests only: open the app with ?debug to reach internals.
+if (new URLSearchParams(location.search).has("debug")) window.skinshieldDebug = { learner, raiseAlert, prefs };
 
 bindSettings();
 renderStats();

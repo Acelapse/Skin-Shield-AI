@@ -13,7 +13,7 @@ const fmtTime = (ms) => {
 };
 const pct = (v) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
 
-export function createRecorder({ getContext, onStart, onStop }) {
+export function createRecorder({ getContext, onStart, onStop, onChange }) {
   let state = "idle"; // idle | countdown | recording
   let clip = null;
   let startAt = 0;
@@ -45,7 +45,7 @@ export function createRecorder({ getContext, onStart, onStop }) {
     ...Object.entries(groups).map(([expected, title]) => {
       const og = document.createElement("optgroup");
       og.label = title;
-      LABELS.filter((l) => l.expected === expected).forEach((l) => og.append(new Option(l.name, l.id)));
+      LABELS.filter((l) => l.expected === expected && !l.auto).forEach((l) => og.append(new Option(l.name, l.id)));
       return og;
     }),
   );
@@ -201,6 +201,7 @@ export function createRecorder({ getContext, onStart, onStop }) {
     els.exportBtn.disabled = empty;
     els.clearBtn.disabled = empty;
     els.score.disabled = empty;
+    onChange?.(clips);
   }
 
   // ----- export / import -----
@@ -267,6 +268,10 @@ export function createRecorder({ getContext, onStart, onStop }) {
     },
     captureFrame,
     setEnabled,
+    refresh,
+    get clips() {
+      return clips;
+    },
     cancel: () => state !== "idle" && finish(false),
   };
 }

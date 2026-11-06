@@ -26,15 +26,16 @@ export function makeFace(cx = 0.5, cy = 0.5, rx = 0.1, ry = 0.14) {
 }
 
 // Synthetic hand: wrist below the fingertip `tip`, palm length `palm`.
-// `pinch` brings the thumb tip to the index tip.
-export function makeHand(tip, { palm = 0.1, pinch = true } = {}) {
+// `pinch` brings the thumb tip to the index tip. `bunch` < 1 draws the ring and
+// little fingertips in towards the index fingertip (a resting, bunched hand).
+export function makeHand(tip, { palm = 0.1, pinch = true, bunch = 1 } = {}) {
   const pts = Array.from({ length: 21 }, () => ({ x: tip.x, y: tip.y + palm, z: 0 }));
   pts[0] = { x: tip.x, y: tip.y + palm * 1.9, z: 0 }; // wrist
   pts[9] = { x: tip.x, y: tip.y + palm * 0.9, z: 0 }; // middle MCP
   pts[8] = { ...tip, z: 0 }; // index tip
   pts[12] = { x: tip.x + palm * 0.2, y: tip.y + palm * 0.1, z: 0 };
-  pts[16] = { x: tip.x + palm * 0.35, y: tip.y + palm * 0.3, z: 0 };
-  pts[20] = { x: tip.x + palm * 0.5, y: tip.y + palm * 0.5, z: 0 };
+  pts[16] = { x: tip.x + palm * 0.35 * bunch, y: tip.y + palm * 0.3 * bunch, z: 0 };
+  pts[20] = { x: tip.x + palm * 0.5 * bunch, y: tip.y + palm * 0.5 * bunch, z: 0 };
   pts[4] = pinch ? { x: tip.x - palm * 0.05, y: tip.y + palm * 0.03, z: 0 } : { x: tip.x - palm * 0.8, y: tip.y + palm * 0.6, z: 0 };
   return pts;
 }

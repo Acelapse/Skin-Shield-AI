@@ -265,3 +265,29 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: 
 .rec-overlay { position: absolute; z-index: 2; pointer-events: none; color: #fff; font-weight: 700; }
 .rec-overlay.countdown { inset: 0; display: grid; place-items: center; font-size: 96px; background: rgb(0 0 0 / 0.35); }
 .rec-overlay.live { top: 12px; left: 12px; font-size: 14px; padding: 4px 10px; border-radius: 999px; background: #c62828; font-variant-numeric: tabular-nums; }
+
+/* ---------- learning ---------- */
+.learn p { margin: 0 0 8px; }
+.learn-values { font-size: 14px; }
+#learnResult { font-size: 14px; }
+#learnResult:empty { display: none; }
+.learn-settings { margin-top: 14px; gap: 8px; }
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 12px 10px 16px;
+  border-radius: 12px;
+  background: #1f2328;
+  color: #f2f2f2;
+  font-size: 14px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+  z-index: 20;
+}
+@media (prefers-color-scheme: dark) { .toast { background: #e8e6e3; color: #1c1f22; } }
+.btn-small { padding: 5px 10px; font-size: 13px; white-space: nowrap; }

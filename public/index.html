@@ -36,6 +36,7 @@
         <div class="controls">
           <button id="pauseBtn" class="btn" disabled>Pause</button>
           <button id="snoozeBtn" class="btn" disabled>Snooze 15 min</button>
+          <button id="missedBtn" class="btn" disabled title="Picking that SkinShield didn't catch? Press this right after, and it will learn from the last few seconds.">Missed one</button>
           <label class="camera-pick">
             <span>Camera</span>
             <select id="cameraSelect" aria-label="Camera"><option value="">Default camera</option></select>
@@ -64,6 +65,23 @@
           <div class="week" id="week"></div>
           <h3>Recent</h3>
           <ul class="events" id="events"><li class="empty">No episodes yet.</li></ul>
+        </section>
+
+        <section class="card learn">
+          <h2>Learning</h2>
+          <p class="hint" id="learnStatus"></p>
+          <p class="learn-values"><span class="hint">Current fit:</span> <strong id="learnValues"></strong></p>
+          <p id="learnResult" aria-live="polite"></p>
+          <div class="rec-actions">
+            <button id="learnBtn" class="btn">Learn now</button>
+            <button id="applyLearnBtn" class="btn btn-primary" hidden>Apply</button>
+            <button id="undoLearnBtn" class="btn" hidden>Undo</button>
+            <button id="resetLearnBtn" class="btn btn-quiet">Reset to defaults</button>
+          </div>
+          <form id="learnSettings" class="settings learn-settings">
+            <label class="check"><input type="checkbox" name="learn" /> Learn from my answers to alerts</label>
+            <label class="check"><input type="checkbox" name="autoLearn" /> Apply improvements automatically</label>
+          </form>
         </section>
 
         <section class="card">
@@ -144,6 +162,11 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div id="toast" class="toast" hidden role="status" aria-live="polite">
+      <span id="toastText"></span>
+      <button id="toastAction" class="btn btn-small" hidden></button>
     </div>
 
     <script type="module" src="js/app.js"></script>
