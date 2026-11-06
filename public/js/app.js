@@ -167,15 +167,93 @@ async function createModels(setMsg) {
 
 // ---------- camera + loop ----------
 
-async function startCamera() {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user", frameRate: { ideal: 30 } },
-    audio: false,
-  });
+function stopCamera() {
+  video.srcObject?.getTracks().forEach((t) => t.stop());
+  video.srcObject = null;
+}
+
+// Opens the chosen camera, or the default one if none was chosen or the saved
+// one is no longer plugged in.
+async function startCamera(deviceId = prefs.cameraId) {
+  const base = { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } };
+  stopCamera();
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: deviceId ? { ...base, deviceId: { exact: deviceId } } : { ...base, facingMode: "user" },
+      audio: false,
+    });
+  } catch (err) {
+    const missing = ["OverconstrainedError", "NotFoundError", "NotReadableError"].includes(err?.name);
+    if (!deviceId || !missing) throw err;
+    console.warn("Saved camera unavailable, using the default one", err);
+    stream = await navigator.mediaDevices.getUserMedia({ video: { ...base, facingMode: "user" }, audio: false });
+  }
   video.srcObject = stream;
   await video.play();
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
+  const actual = stream.getVideoTracks()[0]?.getSettings().deviceId;
+  if (actual) {
+    prefs.cameraId = actual;
+    savePrefs();
+  }
+  await listCameras();
+}
+
+// Device names are only revealed after camera permission is granted, so this
+// runs again once the camera is open and whenever a camera is plugged in or out.
+async function listCameras() {
+  const select = $("cameraSelect");
+  let cams = [];
+  try {
+    cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+  } catch {
+    /* keep the default entry */
+  }
+  const current = video.srcObject?.getVideoTracks()[0]?.getSettings().deviceId || prefs.cameraId || "";
+  select.replaceChildren(
+    ...(cams.length ? cams : [{ deviceId: "", label: "Default camera" }]).map((c, i) => {
+      const opt = document.createElement("option");
+      opt.value = c.deviceId;
+      opt.textContent = c.label || `Camera ${i + 1}`;
+      return opt;
+    }),
+  );
+  if ([...select.options].some((o) => o.value === current)) select.value = current;
+  select.disabled = switching || cams.length < 2;
+}
+
+let switching = false;
+
+async function switchCamera(deviceId) {
+  if (switching) return;
+  prefs.cameraId = deviceId;
+  savePrefs();
+  if (!running) return; // used on the next Start
+  switching = true;
+  $("cameraSelect").disabled = true;
+  setStatus("Switching camera...", "off");
+  try {
+    await startCamera(deviceId);
+  } catch (err) {
+    console.error(err);
+    setStatus("Couldn't open that camera", "warn");
+    try {
+      await startCamera("");
+    } catch {
+      /* nothing else to fall back to */
+    }
+  } finally {
+    // Start fresh: tracking from the old camera means nothing for the new view.
+    tracker.reset();
+    motion.clear();
+    lastFace = null;
+    lastVideoTime = -1;
+    g.clearRect(0, 0, canvas.width, canvas.height);
+    switching = false;
+    await listCameras();
+  }
 }
 
 // Timers in a worker keep firing when this tab is in the background, unlike
@@ -203,7 +281,7 @@ let frameNo = 0;
 let lastFaces = { faceLandmarks: [] };
 
 function tick() {
-  if (!running || video.readyState < 2) return;
+  if (!running || switching || video.readyState < 2) return;
   const now = performance.now();
   if (video.currentTime === lastVideoTime) return;
   lastVideoTime = video.currentTime;
@@ -448,6 +526,10 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) g.clearRect(0, 0, canvas.width, canvas.height);
 });
 
+$("cameraSelect").addEventListener("change", (e) => switchCamera(e.target.value));
+navigator.mediaDevices?.addEventListener?.("devicechange", listCameras);
+
 bindSettings();
 renderStats();
+listCameras();
 setInterval(renderStats, 30e3);

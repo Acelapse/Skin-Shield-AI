@@ -49,6 +49,7 @@ Each episode is labelled with the area being touched (forehead, nose, cheeks, mo
 
 ## Tips
 
+- Use the **Camera** menu under the video to switch between your built-in webcam and an external one. It switches live, and your choice is remembered next time.
 - Monitoring keeps running while you use other apps. Put SkinShield in its own small browser window and allow notifications.
 - Face the camera with reasonable lighting. The app works from a normal laptop seating distance.
 - Snooze for 15 minutes when you're eating, applying skincare or on a video call.
