@@ -134,6 +134,9 @@ export function evaluateClips(clips, settings) {
       peakScore,
       correct: expected === "alert" ? alerted : !alerted,
       firstAlertMs: alerted ? alerts[0].t : null,
+      // Time from the hand first coming into view to the first alert: a fairer
+      // measure of speed when the action starts a while after recording does.
+      reactionMs: alerted ? alerts[0].t - (clip.frames.find((f) => f.h?.length)?.t ?? 0) : null,
       zoneMatch: clip.area && alerted ? alerts.some((a) => a.zone === clip.area) : null,
     };
   });

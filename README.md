@@ -31,6 +31,8 @@ SkinShield runs two MediaPipe models on every frame: a hand landmarker (21 point
 | --- | --- |
 | **Proximity** | Whether the contact point is inside the face outline, or within a small margin of it |
 | **Pinch posture** | Thumb tip meeting the index or middle fingertip, the typical picking/squeezing grip |
+| **Two-finger squeeze** | The nose held between the index and middle fingers (no thumb), with the ring and little fingers straight |
+| **Hand shape** | Picking keeps the working fingers apart from the rest; resting a chin, rubbing eyes or holding food bunches or curls them |
 | **Fidgeting** | Small back-and-forth fingertip motion at one spot (scratching), which separates picking from resting your chin on your hand |
 | **Depth check** | Palm size vs face size; a hand much larger than the face is in front of the camera, not on your skin |
 

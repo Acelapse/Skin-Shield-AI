@@ -40,16 +40,16 @@ function measure(clips, prefs) {
     negatives: r.negatives,
     medianTimeToAlertMs: r.medianTimeToAlertMs,
     errors: r.positives - caught + r.falseAlarms,
-    // A late alert is partly a miss. Only recorded clips count here: in those the
-    // picking starts when recording starts. Alerts after 3 s add up to half a
+    // A late alert is partly a miss. Only recorded clips count here, timed from
+    // when the hand first comes into view. Alerts after 3 s add up to half a
     // mistake each (reached at 8 s).
     mistakes: r.positives - caught + r.falseAlarms + r.rows.reduce((sum, row) => sum + lateness(row), 0),
   };
 }
 
 function lateness(row) {
-  if (row.expected !== "alert" || row.firstAlertMs === null || row.clip.source === "feedback") return 0;
-  return Math.min(0.5, Math.max(0, (row.firstAlertMs - 3000) / 10000));
+  if (row.expected !== "alert" || row.reactionMs === null || row.clip.source === "feedback") return 0;
+  return Math.min(0.5, Math.max(0, (row.reactionMs - 3000) / 10000));
 }
 
 // Returns { ready, current, best, improved }. `best` holds the suggested

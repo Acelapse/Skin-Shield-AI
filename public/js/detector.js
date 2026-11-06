@@ -4,7 +4,8 @@
 
 // Bump whenever scoring changes, so old recordings aren't expected to replay
 // exactly as they behaved live. 2: hand-shape check, motion noise floor.
-export const DETECTOR_VERSION = 2;
+// 3: two-finger nose squeeze.
+export const DETECTOR_VERSION = 3;
 
 // MediaPipe FaceMesh face-oval contour, in order around the face.
 export const FACE_OVAL = [
@@ -64,6 +65,13 @@ export const DEFAULT_SETTINGS = {
   // and it counts fully from spreadMin + spreadRamp.
   spreadMin: 0.4,
   spreadRamp: 0.2,
+  // Two-finger nose squeeze: the nose held between the index and middle fingers
+  // (often with the backs or sides of the fingers, no thumb). Counts when a nose
+  // point is within squeezeDist face widths of both fingers and the ring and
+  // little fingers are straight (resting and rubbing curl them into the palm).
+  squeezeDist: 0.12,
+  foldMin: 1.05,
+  foldRamp: 0.15,
 };
 
 // Maps the app's user-facing settings to detector settings. Shared by the app and
@@ -227,13 +235,42 @@ export function scoreHand(handLandmarks, face, settings = DEFAULT_SETTINGS, aspe
 
   const posture = s.requirePinch ? Math.max(pinch, pointing) : Math.max(pinch, 0.8);
   let score = proximity * posture * depth * openness;
+  let contact = tip;
+  let area = zone;
   if (zone === "mouth" && !s.includeMouth) score = 0;
+
+  // 5. Two-finger nose squeeze (see squeezeDist). No thumb involved, so the
+  // pinch check above misses it.
+  const ramp = (v, min, width) => Math.max(0, Math.min(1, (v - min) / width));
+  const chain = (p, idx) => {
+    let d = Infinity;
+    for (let i = 0; i < idx.length - 1; i++) d = Math.min(d, distToSegment(p, h[idx[i]], h[idx[i + 1]]));
+    return d;
+  };
+  let squeezeGap = Infinity;
+  let squeezePoint = null;
+  for (const p of face.zones.nose) {
+    const d = Math.max(chain(p, [5, 6, 7, HAND.INDEX_TIP]), chain(p, [HAND.MIDDLE_MCP, 10, 11, HAND.MIDDLE_TIP])) / fw;
+    if (d < squeezeGap) {
+      squeezeGap = d;
+      squeezePoint = p;
+    }
+  }
+  const reach = (t, k) => dist(h[t], h[HAND.WRIST]) / (dist(h[k], h[HAND.WRIST]) || 1e-6);
+  const straight = (reach(HAND.RING_TIP, 13) + reach(HAND.PINKY_TIP, HAND.PINKY_MCP)) / 2;
+  // Full marks within half of squeezeDist, fading to 0 at squeezeDist.
+  const squeeze = ramp(s.squeezeDist - squeezeGap, 0, s.squeezeDist / 2) * ramp(straight, s.foldMin, s.foldRamp) * depth;
+  if (squeeze > score) {
+    score = squeeze;
+    contact = squeezePoint;
+    area = "nose";
+  }
 
   return {
     score,
-    zone,
-    tip: { x: tip.x / aspect, y: tip.y },
-    reasons: { proximity, pinch, pointing, fidget, depth, depthRatio, spread, openness, edgeDist: best.d },
+    zone: area,
+    tip: { x: contact.x / aspect, y: contact.y },
+    reasons: { proximity, pinch, pointing, fidget, depth, depthRatio, spread, openness, squeeze, squeezeGap, straight, edgeDist: best.d },
   };
 }
 

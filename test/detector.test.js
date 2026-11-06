@@ -124,3 +124,32 @@ test("cooldown suppresses repeated alerts", () => {
   // alerts at ~500, ~3500 (cooldown ends at 3500 and dwell restarted at 500 → ready)
   assert.equal(alerts, 2);
 });
+
+// Nose held between the index and middle fingers (no thumb). Synthetic face:
+// nose at (0.5, 0.5), face 0.2 wide.
+function noseSqueezeHand({ curled = false } = {}) {
+  const p = (x, y) => ({ x, y, z: 0 });
+  const h = Array.from({ length: 21 }, () => p(0.5, 0.7));
+  h[0] = p(0.5, 0.75); // wrist
+  h[4] = p(0.4, 0.65); // thumb tip, well away
+  [h[5], h[6], h[7], h[8]] = [p(0.47, 0.62), p(0.475, 0.57), p(0.48, 0.53), p(0.49, 0.5)]; // index, left of nose
+  [h[9], h[10], h[11], h[12]] = [p(0.53, 0.62), p(0.52, 0.57), p(0.515, 0.53), p(0.51, 0.5)]; // middle, right of nose
+  h[13] = p(0.55, 0.63);
+  h[17] = p(0.57, 0.65);
+  h[16] = curled ? p(0.545, 0.68) : p(0.56, 0.52); // ring tip: curled into the palm, or straight
+  h[20] = curled ? p(0.56, 0.69) : p(0.58, 0.55); // little fingertip
+  return h;
+}
+
+test("two-finger nose squeeze without the thumb is caught and labelled nose", () => {
+  const r = evaluateFrame(makeFace(), [noseSqueezeHand()], DEFAULT_SETTINGS);
+  assert.ok(r.score >= 0.9, `score ${r.score}`);
+  assert.equal(r.zone, "nose");
+  assert.equal(r.hands[0].reasons.pinch, 0, "the thumb isn't involved");
+});
+
+test("fingers around the nose with ring and little fingers curled in don't count as a squeeze", () => {
+  const r = evaluateFrame(makeFace(), [noseSqueezeHand({ curled: true })], DEFAULT_SETTINGS);
+  assert.equal(r.hands[0].reasons.squeeze, 0);
+  assert.ok(r.score < DEFAULT_SETTINGS.threshold, `score ${r.score}`);
+});
