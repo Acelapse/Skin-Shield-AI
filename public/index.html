@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SkinShield</title>
+    <meta name="description" content="Gentle webcam alerts when you start picking at your skin. Runs entirely on your device." />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="logo"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z" /></svg>
+        <span>SkinShield</span>
+      </div>
+      <div id="status" class="pill pill-off" role="status" aria-live="polite">Not monitoring</div>
+    </header>
+
+    <main class="layout">
+      <section class="stage card">
+        <div class="viewport" id="viewport">
+          <video id="video" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div class="meter" aria-hidden="true"><div id="meterFill"></div></div>
+          <div class="placeholder" id="placeholder">
+            <h1>Catch the habit before it catches you.</h1>
+            <p>
+              SkinShield watches for your fingers pinching, squeezing or scratching at your face and gives you a gentle
+              nudge. Everything runs in this browser tab: no video is recorded, stored or uploaded.
+            </p>
+            <button id="startBtn" class="btn btn-primary">Start monitoring</button>
+            <p class="hint" id="loadMsg"></p>
+          </div>
+        </div>
+        <div class="controls">
+          <button id="pauseBtn" class="btn" disabled>Pause</button>
+          <button id="snoozeBtn" class="btn" disabled>Snooze 15 min</button>
+          <label class="toggle"><input type="checkbox" id="showOverlay" checked /> Show tracking</label>
+          <span class="spacer"></span>
+          <span class="hint" id="fps"></span>
+        </div>
+        <p class="hint tip">
+          Tip: SkinShield keeps watching while you work in other windows. Keep this tab open (a separate small window
+          works best) and allow notifications so alerts reach you anywhere.
+        </p>
+      </section>
+
+      <aside class="side">
+        <section class="card">
+          <h2>Today</h2>
+          <div class="stats">
+            <div class="stat"><span class="num" id="todayCount">0</span><span class="lbl">episodes caught</span></div>
+            <div class="stat"><span class="num" id="sinceLast">--</span><span class="lbl">since last episode</span></div>
+            <div class="stat"><span class="num" id="topZone">--</span><span class="lbl">most touched area</span></div>
+          </div>
+          <h3>Where</h3>
+          <ul class="zones" id="zones"></ul>
+          <h3>Last 7 days</h3>
+          <div class="week" id="week"></div>
+          <h3>Recent</h3>
+          <ul class="events" id="events"><li class="empty">No episodes yet.</li></ul>
+        </section>
+
+        <section class="card">
+          <h2>Settings</h2>
+          <form id="settings" class="settings">
+            <label>Sensitivity
+              <input type="range" name="sensitivity" min="1" max="10" step="1" />
+              <span class="out" data-for="sensitivity"></span>
+            </label>
+            <label>Alert after
+              <input type="range" name="dwell" min="0.5" max="5" step="0.5" />
+              <span class="out" data-for="dwell"></span>
+            </label>
+            <label>Quiet time between alerts
+              <input type="range" name="cooldown" min="3" max="60" step="1" />
+              <span class="out" data-for="cooldown"></span>
+            </label>
+            <label class="check"><input type="checkbox" name="sound" /> Play a sound</label>
+            <label class="check"><input type="checkbox" name="notify" /> Desktop notifications</label>
+            <label class="check"><input type="checkbox" name="includeMouth" /> Watch the mouth area (nail biting)</label>
+            <label class="check"><input type="checkbox" name="requirePinch" /> Only pinching and scratching, not light touches</label>
+          </form>
+          <button id="clearBtn" class="btn btn-quiet">Clear history</button>
+        </section>
+      </aside>
+    </main>
+
+    <div id="alert" class="alert" hidden role="alertdialog" aria-labelledby="alertTitle" aria-describedby="alertBody">
+      <div class="alert-card">
+        <div class="breath" id="breath" hidden>
+          <div class="circle" id="circle"></div>
+          <p id="breathText">Breathe in</p>
+        </div>
+        <div id="alertMain">
+          <h2 id="alertTitle">Hands down for a moment</h2>
+          <p id="alertBody"></p>
+          <p class="hint">Picking often shows up when we're stressed, bored or anxious. Noticing it is the first step.</p>
+          <div class="alert-actions">
+            <button class="btn btn-primary" id="breatheBtn">Breathe with me (30s)</button>
+            <button class="btn" id="okBtn">I've stopped</button>
+            <button class="btn btn-quiet" id="falseBtn">That wasn't picking</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

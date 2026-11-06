@@ -1,0 +1,28 @@
+{
+  "name": "skin-shield-ai",
+  "version": "0.1.0",
+  "description": "Webcam-based skin-picking detector that runs fully on-device",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "models": "node scripts/download-models.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Acelapse/Skin-Shield-AI.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Acelapse/Skin-Shield-AI/issues"
+  },
+  "homepage": "https://github.com/Acelapse/Skin-Shield-AI#readme",
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.2.2"
+  },
+  "type": "module",
+  "private": true
+}
