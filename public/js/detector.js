@@ -9,16 +9,21 @@ export const FACE_OVAL = [
   54, 103, 67, 109,
 ];
 
-// Reference points used to label which part of the face is being touched.
+// Reference points used to label which part of the face is being touched. The
+// touch is given the area of the nearest single landmark. "Left" and "right" are
+// the person's own sides: their right cheek is on the left of the camera image.
 export const FACE_ZONES = {
-  forehead: [10, 151, 9, 108, 337],
-  nose: [1, 4, 5, 195],
-  "left cheek": [234, 50, 101, 205],
-  "right cheek": [454, 280, 330, 425],
+  forehead: [10, 151, 9, 108, 337, 67, 297],
+  nose: [1, 4, 5, 195, 48, 278],
+  "right cheek": [234, 50, 101, 205, 117, 123],
+  "left cheek": [454, 280, 330, 425, 346, 352],
   mouth: [13, 14, 0, 17, 61, 291],
-  chin: [152, 199, 175, 200],
-  jaw: [172, 136, 397, 365],
+  chin: [152, 199, 175, 200, 18],
+  jaw: [172, 136, 150, 397, 365, 379],
 };
+
+// Every face landmark the detector reads. Recordings store only these.
+export const FACE_POINTS_USED = [...new Set([...FACE_OVAL, ...Object.values(FACE_ZONES).flat(), 234, 454, 10, 152])].sort((a, b) => a - b);
 
 // Hand landmark indices.
 export const HAND = {
@@ -49,6 +54,43 @@ export const DEFAULT_SETTINGS = {
   // Minimum score (0..1) to count a frame as suspicious.
   threshold: 0.55,
 };
+
+// Maps the app's user-facing settings to detector settings. Shared by the app and
+// the evaluation script so both score recordings identically.
+export function settingsFor({ sensitivity = 6, dwell = 1.5, cooldown = 10, includeMouth = true, requirePinch = true } = {}) {
+  return {
+    ...DEFAULT_SETTINGS,
+    threshold: 0.85 - (sensitivity - 1) * 0.055,
+    proximity: 0.06 + (sensitivity - 1) * 0.015,
+    dwellMs: dwell * 1000,
+    cooldownMs: cooldown * 1000,
+    includeMouth,
+    requirePinch,
+  };
+}
+
+// The face model can lose the face while a hand covers it. While hands are in
+// view, keep using the last face seen for a short while.
+export class FaceMemory {
+  constructor(memoryMs = 1500) {
+    this.memoryMs = memoryMs;
+    this.reset();
+  }
+
+  reset() {
+    this.face = null;
+    this.at = 0;
+  }
+
+  update(face, handsInView, now) {
+    if (face) {
+      this.face = face;
+      this.at = now;
+      return face;
+    }
+    return this.face && handsInView && now - this.at < this.memoryMs ? this.face : null;
+  }
+}
 
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -94,24 +136,20 @@ export function describeFace(faceLandmarks, aspect = 1) {
   const width = dist(pts[234], pts[454]);
   const height = dist(pts[10], pts[152]);
   const zones = {};
-  for (const [name, idx] of Object.entries(FACE_ZONES)) {
-    const ps = idx.map((i) => pts[i]);
-    zones[name] = {
-      x: ps.reduce((s, p) => s + p.x, 0) / ps.length,
-      y: ps.reduce((s, p) => s + p.y, 0) / ps.length,
-    };
-  }
+  for (const [name, idx] of Object.entries(FACE_ZONES)) zones[name] = idx.map((i) => pts[i]);
   return { oval, width, height, zones, pts };
 }
 
 export function nearestZone(p, face) {
   let best = null;
   let bestD = Infinity;
-  for (const [name, c] of Object.entries(face.zones)) {
-    const d = dist(p, c);
-    if (d < bestD) {
-      bestD = d;
-      best = name;
+  for (const [name, points] of Object.entries(face.zones)) {
+    for (const c of points) {
+      const d = dist(p, c);
+      if (d < bestD) {
+        bestD = d;
+        best = name;
+      }
     }
   }
   return best;

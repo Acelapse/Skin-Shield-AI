@@ -1,4 +1,5 @@
-import { evaluateFrame, MotionMeter, PickingTracker, FACE_OVAL, DEFAULT_SETTINGS } from "./detector.js";
+import { evaluateFrame, FaceMemory, MotionMeter, PickingTracker, FACE_OVAL, settingsFor } from "./detector.js";
+import { createRecorder } from "./recorder.js";
 import { chime, flashTitle, message, notify, requestNotifications, unlockAudio } from "./alerts.js";
 import { Stats, formatAgo } from "./stats.js";
 
@@ -9,7 +10,6 @@ const MODELS = {
   face: ["models/face_landmarker.task", "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"],
 };
 const TARGET_FPS = 15;
-const FACE_MEMORY_MS = 1500; // a hand covering the face can hide it from the face model
 const SETTINGS_KEY = "skinshield.settings.v1";
 
 const $ = (id) => document.getElementById(id);
@@ -20,6 +20,7 @@ const g = canvas.getContext("2d");
 const stats = new Stats();
 const motion = new MotionMeter();
 const tracker = new PickingTracker();
+const faceMemory = new FaceMemory();
 
 const prefs = loadPrefs();
 let handLandmarker = null;
@@ -27,8 +28,6 @@ let faceLandmarker = null;
 let running = false;
 let paused = false;
 let snoozeUntil = 0;
-let lastFace = null;
-let lastFaceAt = 0;
 let lastVideoTime = -1;
 let alertOpen = false;
 let currentEventId = null;
@@ -56,18 +55,7 @@ function savePrefs() {
 }
 
 // Sensitivity 1..10 trades false alarms against missed episodes.
-function detectorSettings() {
-  const s = prefs.sensitivity;
-  return {
-    ...DEFAULT_SETTINGS,
-    threshold: 0.85 - (s - 1) * 0.055,
-    proximity: 0.06 + (s - 1) * 0.015,
-    dwellMs: prefs.dwell * 1000,
-    cooldownMs: prefs.cooldown * 1000,
-    includeMouth: prefs.includeMouth,
-    requirePinch: prefs.requirePinch,
-  };
-}
+const detectorSettings = () => settingsFor(prefs);
 
 function bindSettings() {
   const form = $("settings");
@@ -231,6 +219,7 @@ async function switchCamera(deviceId) {
   prefs.cameraId = deviceId;
   savePrefs();
   if (!running) return; // used on the next Start
+  recorder.cancel(); // a clip must come from one camera
   switching = true;
   $("cameraSelect").disabled = true;
   setStatus("Switching camera...", "off");
@@ -248,7 +237,7 @@ async function switchCamera(deviceId) {
     // Start fresh: tracking from the old camera means nothing for the new view.
     tracker.reset();
     motion.clear();
-    lastFace = null;
+    faceMemory.reset();
     lastVideoTime = -1;
     g.clearRect(0, 0, canvas.width, canvas.height);
     switching = false;
@@ -289,21 +278,19 @@ function tick() {
   const hands = handLandmarker.detectForVideo(video, now);
   // Faces move slowly compared to fingers; tracking them every other frame
   // roughly halves the cost with no visible loss.
-  if (frameNo++ % 2 === 0 || !lastFace) lastFaces = faceLandmarker.detectForVideo(video, now);
-  const faces = lastFaces;
-
-  let face = faces.faceLandmarks?.[0] || null;
-  if (face) {
-    lastFace = face;
-    lastFaceAt = now;
-  } else if (lastFace && now - lastFaceAt < FACE_MEMORY_MS && hands.landmarks?.length) {
-    face = lastFace;
-  }
+  if (frameNo++ % 2 === 0 || !faceMemory.face) lastFaces = faceLandmarker.detectForVideo(video, now);
+  const rawFace = lastFaces.faceLandmarks?.[0] || null;
+  const face = faceMemory.update(rawFace, hands.landmarks?.length > 0, now);
 
   const aspect = video.videoWidth / video.videoHeight || 4 / 3;
-  const active = !paused && now >= snoozeUntil && !alertOpen;
+  // While recording a test clip the detector always runs, but alerts are only
+  // noted in the clip, not shown, so they don't interrupt the recording.
+  const recording = recorder.recording;
+  const active = recording || (!paused && now >= snoozeUntil && !alertOpen);
   const result = evaluateFrame(face, hands.landmarks, detectorSettings(), aspect, motion, now);
   const out = active ? tracker.push(result.score, result.zone, now) : { state: "idle", progress: 0, alert: null };
+  recorder.captureFrame(now, rawFace, hands.landmarks, out.alert);
+  if (recording) out.alert = null;
 
   if (out.alert) raiseAlert(out.alert);
   $("meterFill").style.width = `${Math.round(out.progress * 100)}%`;
@@ -481,6 +468,7 @@ $("startBtn").addEventListener("click", async () => {
     ticker = startTicker(tick);
     $("pauseBtn").disabled = false;
     $("snoozeBtn").disabled = false;
+    recorder.setEnabled(true);
     setStatus("Watching", "on");
   } catch (err) {
     console.error(err);
@@ -527,6 +515,26 @@ document.addEventListener("visibilitychange", () => {
 });
 
 $("cameraSelect").addEventListener("change", (e) => switchCamera(e.target.value));
+
+const recorder = createRecorder({
+  getContext: () => ({
+    running,
+    prefs: { ...prefs },
+    settings: { sensitivity: prefs.sensitivity, dwell: prefs.dwell, cooldown: prefs.cooldown, includeMouth: prefs.includeMouth, requirePinch: prefs.requirePinch },
+    aspect: video.videoWidth / video.videoHeight || 4 / 3,
+    camera: $("cameraSelect").selectedOptions[0]?.textContent || "",
+  }),
+  onStart: () => {
+    tracker.reset();
+    motion.clear();
+    faceMemory.reset();
+  },
+  // Don't let picking-like moves acted out for a clip trigger a real alert right after.
+  onStop: () => {
+    tracker.reset();
+    motion.clear();
+  },
+});
 navigator.mediaDevices?.addEventListener?.("devicechange", listCameras);
 
 bindSettings();

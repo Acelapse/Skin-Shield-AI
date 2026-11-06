@@ -54,13 +54,33 @@ Each episode is labelled with the area being touched (forehead, nose, cheeks, mo
 - Face the camera with reasonable lighting. The app works from a normal laptop seating distance.
 - Snooze for 15 minutes when you're eating, applying skincare or on a video call.
 
+## Test recordings: measure accuracy for yourself
+
+The **Test recordings** panel (bottom of the sidebar) records short labelled clips so you can see how well detection works for your face, lighting and habits. Only the tracking points are saved, never video, and they stay in your browser unless you export them.
+
+1. Click **Start monitoring**, then open **Test recordings**.
+2. Choose what you'll do (for example "Picking or squeezing" on the chin, or "Resting chin on hand"), a length, and optional notes such as "dim light".
+3. Click **Record**. After a 3 second countdown, do that action until the recording stops. Alerts don't pop up during a recording.
+4. Record a mix: several clips of real picking or scratching, and several of things that should *not* alert (resting your chin, rubbing your eyes, drinking, normal work).
+5. Click **Score with current settings** to see how much picking was caught and how many false alarms there were at your current settings.
+
+To compare every sensitivity level at once, click **Export**, save the file into the `recordings/` folder, and run:
+
+```bash
+npm run evaluate
+```
+
+It prints the catch rate, false alarms, time to alert and how often the face area was named correctly at sensitivities 1 to 10, recommends a level, and lists which clips were missed. Options: `--sensitivity 7` for per-clip detail at one level, `--dwell 2`, `--no-mouth`, `--no-pinch`. The `recordings/` folder is ignored by git.
+
+The same recordings can later be used as training data if the hand-written detection rules are replaced with a trained model.
+
 ## Development
 
 ```bash
 npm test
 ```
 
-Runs unit tests for the detection and episode logic with synthetic landmarks (`test/detector.test.js`).
+Runs unit tests for the detection, episode, recording and scoring logic with synthetic landmarks (`test/`).
 
 ```
 public/
@@ -70,8 +90,12 @@ public/
   js/detector.js    pure scoring + episode tracking (unit tested)
   js/alerts.js      chime, notifications, messages
   js/stats.js       local episode history
+  js/recording.js   recording format, replay and scoring (unit tested)
+  js/recorder.js    Test recordings panel
+  js/clipstore.js   clip storage (IndexedDB)
 server.js           zero-dependency static server (serves MediaPipe from node_modules)
 scripts/download-models.js
+scripts/evaluate.js         scores exported recordings at every sensitivity
 ```
 
 SkinShield is a self-awareness tool, not a medical device. If skin picking is causing you distress, a dermatologist or a therapist familiar with body-focused repetitive behaviours (for example habit reversal training) can help.

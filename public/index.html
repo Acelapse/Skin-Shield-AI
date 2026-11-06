@@ -22,6 +22,7 @@
           <video id="video" playsinline muted></video>
           <canvas id="overlay"></canvas>
           <div class="meter" aria-hidden="true"><div id="meterFill"></div></div>
+          <div id="recOverlay" class="rec-overlay" hidden aria-live="polite"></div>
           <div class="placeholder" id="placeholder">
             <h1>Catch the habit before it catches you.</h1>
             <p>
@@ -87,6 +88,42 @@
           </form>
           <button id="clearBtn" class="btn btn-quiet">Clear history</button>
         </section>
+
+        <details class="card recorder" id="recorder">
+          <summary><h2>Test recordings</h2></summary>
+          <p class="hint">
+            Record short labelled clips to measure how well detection works for you. Only the tracking points are saved,
+            never video, and they stay on this device unless you export them.
+          </p>
+          <div class="rec-form">
+            <label>What you'll do <select id="recLabel"></select></label>
+            <div class="rec-row">
+              <label>Area <select id="recArea"></select></label>
+              <label>Length
+                <select id="recLength">
+                  <option value="10">10 s</option>
+                  <option value="20" selected>20 s</option>
+                  <option value="30">30 s</option>
+                  <option value="60">60 s</option>
+                </select>
+              </label>
+            </div>
+            <label>Notes (optional) <input id="recNotes" type="text" maxlength="120" placeholder="e.g. dim light, glasses on" /></label>
+            <button id="recBtn" class="btn btn-primary" disabled>Record</button>
+            <p class="hint" id="recHint" aria-live="polite"></p>
+          </div>
+          <h3>Clips</h3>
+          <p class="hint" id="clipSummary">No clips yet.</p>
+          <ul class="clips" id="clipList"></ul>
+          <div class="rec-actions">
+            <button id="scoreBtn" class="btn" disabled>Score with current settings</button>
+            <button id="exportBtn" class="btn" disabled>Export</button>
+            <button id="importBtn" class="btn">Import</button>
+            <input id="importFile" type="file" accept=".json,application/json" multiple hidden />
+            <button id="clearClipsBtn" class="btn btn-quiet" disabled>Delete all</button>
+          </div>
+          <div id="scoreOut" class="score" hidden></div>
+        </details>
       </aside>
     </main>
 

@@ -1,3 +1,5 @@
 node_modules/
 public/models/
 .DS_Store
+recordings/*
+!recordings/README.md
