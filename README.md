@@ -42,6 +42,7 @@ Each episode is labelled with the area being touched (forehead, nose, cheeks, mo
 
 ## Settings
 
+- **Keep alarming until I respond** (on by default): instead of one chime, an alarm repeats, a notification stays on screen and the tab title flashes until you answer the alert in SkinShield. Click the notification to jump back to the app. It keeps sounding with the window minimized.
 - **Alert on any touch**: the simplest, strictest mode. Alerts within a quarter of a second whenever any part of either hand overlaps your face, whatever the hand is doing. Sensitivity, the alert delay and the mouth and pinch options are paused while it's on (learning keeps tuning them in the background). Expect alerts for eating, chin resting and eye rubbing too; use Snooze for those times.
 - **Sensitivity**: lower for fewer false alarms, higher to catch subtler picking.
 - **Alert after**: how long picking must continue before you're nudged.
@@ -53,7 +54,7 @@ Each episode is labelled with the area being touched (forehead, nose, cheeks, mo
 ## Tips
 
 - Use the **Camera** menu under the video to switch between your built-in webcam and an external one. It switches live, and your choice is remembered next time.
-- Monitoring keeps running while you use other apps. Put SkinShield in its own small browser window and allow notifications.
+- Monitoring keeps running while you use other apps or with the window minimized: in Chrome and Edge, frames are read straight from the camera, which keeps working when the page isn't visible. Allow notifications so alerts reach you anywhere.
 - Face the camera with reasonable lighting. The app works from a normal laptop seating distance.
 - Snooze for 15 minutes when you're eating, applying skincare or on a video call.
 

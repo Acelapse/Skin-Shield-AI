@@ -295,3 +295,5 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: 
 .settings .strong { font-weight: 600; }
 .settings .setting-note { margin: -6px 0 0 24px; }
 .settings label.is-disabled { opacity: 0.45; }
+
+.alarm-hint { margin: 12px 0 0; font-size: 14px; font-weight: 600; color: var(--warn); }

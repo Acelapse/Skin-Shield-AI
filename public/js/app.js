@@ -1,7 +1,8 @@
 import { evaluateFrame, FaceMemory, MotionMeter, PickingTracker, FACE_OVAL, settingsFor } from "./detector.js";
 import { createRecorder } from "./recorder.js";
 import { createLearner } from "./learner.js";
-import { chime, flashTitle, message, notify, requestNotifications, unlockAudio } from "./alerts.js";
+import { chime, closeNotification, flashTitle, message, notify, requestNotifications, alarmSounding, startAlarm, stopAlarm, stopFlashing, unlockAudio } from "./alerts.js";
+import { createFrameSource } from "./framesource.js";
 import { Stats, formatAgo } from "./stats.js";
 
 const VISION_VERSION = "1.2.2";
@@ -17,6 +18,7 @@ const $ = (id) => document.getElementById(id);
 const video = $("video");
 const canvas = $("overlay");
 const g = canvas.getContext("2d");
+const frameSource = createFrameSource(video);
 
 const stats = new Stats();
 const motion = new MotionMeter();
@@ -29,11 +31,11 @@ let faceLandmarker = null;
 let running = false;
 let paused = false;
 let snoozeUntil = 0;
-let lastVideoTime = -1;
 let alertOpen = false;
 let currentEventId = null;
 let ticker = null;
 let frames = 0;
+let totalFrames = 0; // frames analysed since start (used by tests)
 let fpsAt = performance.now();
 
 // ---------- settings ----------
@@ -52,6 +54,7 @@ function loadPrefs() {
     learn: true,
     autoLearn: true,
     anyTouch: false,
+    persistentAlarm: true,
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") };
@@ -202,6 +205,7 @@ async function createModels(setMsg) {
 // ---------- camera + loop ----------
 
 function stopCamera() {
+  frameSource.stop();
   video.srcObject?.getTracks().forEach((t) => t.stop());
   video.srcObject = null;
 }
@@ -225,6 +229,7 @@ async function startCamera(deviceId = prefs.cameraId) {
   }
   video.srcObject = stream;
   await video.play();
+  frameSource.start(stream);
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   const actual = stream.getVideoTracks()[0]?.getSettings().deviceId;
@@ -284,7 +289,6 @@ async function switchCamera(deviceId) {
     tracker.reset();
     motion.clear();
     faceMemory.reset();
-    lastVideoTime = -1;
     g.clearRect(0, 0, canvas.width, canvas.height);
     switching = false;
     await listCameras();
@@ -316,15 +320,15 @@ let frameNo = 0;
 let lastFaces = { faceLandmarks: [] };
 
 function tick() {
-  if (!running || switching || video.readyState < 2) return;
+  if (!running || switching) return;
+  const image = frameSource.next();
+  if (!image) return;
   const now = performance.now();
-  if (video.currentTime === lastVideoTime) return;
-  lastVideoTime = video.currentTime;
 
-  const hands = handLandmarker.detectForVideo(video, now);
+  const hands = handLandmarker.detectForVideo(image, now);
   // Faces move slowly compared to fingers; tracking them every other frame
   // roughly halves the cost with no visible loss.
-  if (frameNo++ % 2 === 0 || !faceMemory.face) lastFaces = faceLandmarker.detectForVideo(video, now);
+  if (frameNo++ % 2 === 0 || !faceMemory.face) lastFaces = faceLandmarker.detectForVideo(image, now);
   const rawFace = lastFaces.faceLandmarks?.[0] || null;
   const face = faceMemory.update(rawFace, hands.landmarks?.length > 0, now);
 
@@ -348,6 +352,7 @@ function tick() {
   if (!document.hidden) draw(face, hands.landmarks, result, out);
 
   frames++;
+  totalFrames++;
   if (now - fpsAt > 1000) {
     $("fps").textContent = `${Math.round((frames * 1000) / (now - fpsAt))} fps`;
     frames = 0;
@@ -429,9 +434,13 @@ function raiseAlert({ zone, durationMs }) {
   currentEventId = event.id;
   renderStats();
 
-  if (prefs.sound) chime();
-  if (prefs.notify && document.hidden) notify("Picking detected", text);
-  if (document.hidden) flashTitle("Hands down!");
+  // With "Keep alarming", the alarm, notification and flashing title carry on
+  // until the alert is answered, even with the window minimized.
+  const keepGoing = prefs.persistentAlarm;
+  if (prefs.sound) keepGoing ? startAlarm() : chime();
+  if (prefs.notify && (keepGoing || document.hidden)) notify("Picking detected", keepGoing ? `${text} Open SkinShield to stop the alarm.` : text, { persistent: keepGoing });
+  if (keepGoing || document.hidden) flashTitle("Hands down!", { untilStopped: keepGoing });
+  $("alarmHint").hidden = !keepGoing;
 
   $("alertBody").textContent = text;
   $("alertMain").hidden = false;
@@ -442,7 +451,15 @@ function raiseAlert({ zone, durationMs }) {
   $("okBtn").focus();
 }
 
+// Stops the alarm sound, notification and flashing title.
+function silence() {
+  stopAlarm();
+  stopFlashing();
+  closeNotification();
+}
+
 function closeAlert() {
+  silence();
   clearInterval(breathTimer);
   $("alert").hidden = true;
   $("viewport").classList.remove("alerting");
@@ -453,6 +470,7 @@ function closeAlert() {
 }
 
 function breathe() {
+  silence();
   $("alertMain").hidden = true;
   $("breath").hidden = false;
   const circle = $("circle");
@@ -617,7 +635,7 @@ learner = createLearner({
 learner.onClipsChanged();
 
 // For automated tests only: open the app with ?debug to reach internals.
-if (new URLSearchParams(location.search).has("debug")) window.skinshieldDebug = { learner, raiseAlert, prefs };
+if (new URLSearchParams(location.search).has("debug")) window.skinshieldDebug = { learner, raiseAlert, prefs, frames: () => totalFrames, frameMode: () => frameSource.mode, alarmSounding };
 
 bindSettings();
 renderStats();

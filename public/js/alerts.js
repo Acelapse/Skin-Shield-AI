@@ -1,4 +1,5 @@
-// Ways of nudging the user: soft chime, desktop notification, title flash.
+// Ways of nudging the user: soft chime, repeating alarm, desktop notification,
+// title flash.
 
 let ctx = null;
 
@@ -39,34 +40,92 @@ export async function requestNotifications() {
   return Notification.permission;
 }
 
-export function notify(title, body) {
+let current = null;
+
+// `persistent`: the notification stays on screen until clicked or dismissed,
+// instead of disappearing after a few seconds.
+export function notify(title, body, { persistent = false } = {}) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   try {
-    const n = new Notification(title, { body, tag: "skinshield", renotify: true, silent: true });
+    current?.close();
+    const n = new Notification(title, { body, tag: "skinshield", renotify: true, silent: true, requireInteraction: persistent });
     n.onclick = () => {
       window.focus();
       n.close();
     };
-    setTimeout(() => n.close(), 8000);
+    if (!persistent) setTimeout(() => n.close(), 8000);
+    current = n;
   } catch {
     /* some browsers only allow notifications from a service worker */
   }
 }
 
+export function closeNotification() {
+  current?.close();
+  current = null;
+}
+
+// Repeating alarm: three quick beeps, a pause, repeat. The pattern is one audio
+// buffer looped by the audio engine itself, so it keeps sounding in a
+// background tab or minimized window, where the browser slows down timers.
+let alarm = null;
+export function startAlarm(volume = 0.35) {
+  if (!ctx || alarm) return;
+  if (ctx.state === "suspended") ctx.resume();
+  const rate = ctx.sampleRate;
+  const period = 1.6; // seconds per loop
+  const buf = ctx.createBuffer(1, Math.round(rate * period), rate);
+  const data = buf.getChannelData(0);
+  for (const start of [0, 0.22, 0.44]) {
+    const len = 0.16;
+    for (let i = 0; i < len * rate; i++) {
+      const t = i / rate;
+      const env = Math.min(1, t / 0.01, (len - t) / 0.02); // short fade in/out avoids clicks
+      // Two tones together sound more like an alarm than a pure sine.
+      data[Math.round(start * rate) + i] = env * 0.5 * (Math.sin(2 * Math.PI * 880 * t) + 0.6 * Math.sin(2 * Math.PI * 1320 * t));
+    }
+  }
+  const src = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  src.buffer = buf;
+  src.loop = true;
+  gain.gain.value = volume;
+  src.connect(gain).connect(ctx.destination);
+  src.start();
+  alarm = src;
+}
+
+export function stopAlarm() {
+  try {
+    alarm?.stop();
+  } catch {
+    /* already stopped */
+  }
+  alarm = null;
+}
+
+export const alarmSounding = () => alarm !== null;
+
 let flashTimer = null;
-export function flashTitle(text) {
-  const original = "SkinShield";
+const ORIGINAL_TITLE = "SkinShield";
+
+// Flashes the tab title. With `untilStopped`, it keeps flashing until
+// stopFlashing() is called.
+export function flashTitle(text, { untilStopped = false } = {}) {
   clearInterval(flashTimer);
   let on = true;
   let n = 0;
   flashTimer = setInterval(() => {
-    document.title = on ? text : original;
+    document.title = on ? text : ORIGINAL_TITLE;
     on = !on;
-    if (++n > 10) {
-      clearInterval(flashTimer);
-      document.title = original;
-    }
+    if (!untilStopped && ++n > 10) stopFlashing();
   }, 700);
+}
+
+export function stopFlashing() {
+  clearInterval(flashTimer);
+  flashTimer = null;
+  document.title = ORIGINAL_TITLE;
 }
 
 const LINES = [

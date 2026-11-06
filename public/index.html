@@ -106,6 +106,7 @@
               <span class="out" data-for="cooldown"></span>
             </label>
             <label class="check"><input type="checkbox" name="sound" /> Play a sound</label>
+            <label class="check"><input type="checkbox" name="persistentAlarm" /> Keep alarming until I respond</label>
             <label class="check"><input type="checkbox" name="notify" /> Desktop notifications</label>
             <label class="check"><input type="checkbox" name="includeMouth" /> Watch the mouth area (nail biting)</label>
             <label class="check"><input type="checkbox" name="requirePinch" /> Only pinching and scratching, not light touches</label>
@@ -161,6 +162,7 @@
           <h2 id="alertTitle">Hands down for a moment</h2>
           <p id="alertBody"></p>
           <p class="hint">Picking often shows up when we're stressed, bored or anxious. Noticing it is the first step.</p>
+          <p class="alarm-hint" id="alarmHint" hidden>The alarm keeps sounding until you choose one of these.</p>
           <div class="alert-actions">
             <button class="btn btn-primary" id="breatheBtn">Breathe with me (30s)</button>
             <button class="btn" id="okBtn">I've stopped</button>
