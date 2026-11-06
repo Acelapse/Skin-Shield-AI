@@ -2,6 +2,10 @@
 // (x, y in 0..1 image space) and decides whether a hand is picking at the face.
 // Kept framework-free so it can be unit tested in Node.
 
+// Bump whenever scoring changes, so old recordings aren't expected to replay
+// exactly as they behaved live. 2: hand-shape check, motion noise floor.
+export const DETECTOR_VERSION = 2;
+
 // MediaPipe FaceMesh face-oval contour, in order around the face.
 export const FACE_OVAL = [
   10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378,
@@ -53,6 +57,13 @@ export const DEFAULT_SETTINGS = {
   includeMouth: true,
   // Minimum score (0..1) to count a frame as suspicious.
   threshold: 0.55,
+  // Hand shape: average distance from the index fingertip to the ring and little
+  // fingertips, in palm lengths. Picking and scratching keep the working finger
+  // apart from the others; resting a chin, rubbing eyes or holding food bunches
+  // the fingertips together. Below spreadMin the hand doesn't count as picking,
+  // and it counts fully from spreadMin + spreadRamp.
+  spreadMin: 0.4,
+  spreadRamp: 0.2,
 };
 
 // Maps the app's user-facing settings to detector settings. Shared by the app and
@@ -206,15 +217,20 @@ export function scoreHand(handLandmarks, face, settings = DEFAULT_SETTINGS, aspe
   const depth = depthRatio > 1.6 ? 0 : depthRatio > 1.1 ? 1 - (depthRatio - 1.1) / 0.5 : 1;
 
   const zone = nearestZone(tip, face);
+  // 4. Hand shape (see spreadMin). Only applies to the picking-only mode; with it
+  // off, any touch counts by design.
+  const spread = (dist(h[HAND.INDEX_TIP], h[HAND.RING_TIP]) + dist(h[HAND.INDEX_TIP], h[HAND.PINKY_TIP])) / 2 / palm;
+  const openness = s.requirePinch ? Math.max(0, Math.min(1, (spread - s.spreadMin) / s.spreadRamp)) : 1;
+
   const posture = s.requirePinch ? Math.max(pinch, pointing) : Math.max(pinch, 0.8);
-  let score = proximity * posture * depth;
+  let score = proximity * posture * depth * openness;
   if (zone === "mouth" && !s.includeMouth) score = 0;
 
   return {
     score,
     zone,
     tip: { x: tip.x / aspect, y: tip.y },
-    reasons: { proximity, pinch, pointing, fidget, depth, depthRatio, edgeDist: best.d },
+    reasons: { proximity, pinch, pointing, fidget, depth, depthRatio, spread, openness, edgeDist: best.d },
   };
 }
 
@@ -249,8 +265,11 @@ export class MotionMeter {
     const speed = path / secs; // face-widths per second
     if (net > 0.5) return 0; // travelling, not working at one spot
     const wiggle = path > 0 ? 1 - net / path : 0; // 1 = back-and-forth
-    const activity = speed < 0.03 ? 0 : Math.min(1, (speed - 0.03) / 0.25);
-    const tooFast = speed > 2.5 ? 0 : 1;
+    // Tracking points jitter by about 0.02-0.05 face widths per frame even when
+    // the hand is still (measured on real recordings), i.e. up to ~0.75 face
+    // widths per second at 15 fps. Movement below that floor is just noise.
+    const activity = speed < 0.8 ? 0 : Math.min(1, (speed - 0.8) / 1.0);
+    const tooFast = speed > 4 ? 0 : 1;
     return Math.max(0, Math.min(1, activity * (0.4 + 0.6 * wiggle) * tooFast));
   }
 }
@@ -264,11 +283,17 @@ export function evaluateFrame(faceLandmarks, handsLandmarks, settings, aspect = 
   const face = describeFace(faceLandmarks, aspect);
   let fidget = 0;
   if (motion) {
-    // Follow the fingertip of whichever hand is closest to the face.
+    // Follow the index fingertip of whichever hand is closest to the face. Always
+    // the same finger: following "whichever tip is deepest" can hop between
+    // fingers each frame and cancel out real movement.
     const first = handsLandmarks.map((h) => scoreHand(h, face, settings, aspect));
-    const closest = first.reduce((a, b) => (b.reasons.edgeDist < a.reasons.edgeDist ? b : a));
-    if (closest.reasons.edgeDist < 0.2) {
-      motion.push({ x: closest.tip.x * aspect, y: closest.tip.y }, face.width, now);
+    const ci = first.reduce((bi, r, i) => (r.reasons.edgeDist < first[bi].reasons.edgeDist ? i : bi), 0);
+    if (first[ci].reasons.edgeDist < 0.2) {
+      // Measured relative to the nose, so moving your head isn't mistaken for
+      // finger movement.
+      const tip = handsLandmarks[ci][HAND.INDEX_TIP];
+      const nose = face.pts[1];
+      motion.push({ x: tip.x * aspect - nose.x, y: tip.y - nose.y }, face.width, now);
       fidget = motion.level;
     } else {
       motion.clear();

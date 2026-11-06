@@ -1,7 +1,7 @@
 // Test-recording panel: records labelled clips of tracking points, stores them
 // on this device, exports/imports them, and scores them against the detector.
 
-import { FACE_POINTS_USED, settingsFor } from "./detector.js";
+import { DETECTOR_VERSION, FACE_POINTS_USED, settingsFor } from "./detector.js";
 import { AREAS, LABELS, evaluateClips, labelInfo, makeDataset, packFrame, parseDataset } from "./recording.js";
 import { clipStore } from "./clipstore.js";
 
@@ -79,6 +79,7 @@ export function createRecorder({ getContext, onStart, onStop }) {
       camera: ctx.camera,
       settings: ctx.settings,
       faceIndices: FACE_POINTS_USED,
+      detectorVersion: DETECTOR_VERSION,
       liveAlerts: [],
       frames: [],
     };

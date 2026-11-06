@@ -10,7 +10,7 @@
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { settingsFor } from "../public/js/detector.js";
+import { DETECTOR_VERSION, settingsFor } from "../public/js/detector.js";
 import { evaluateClips, labelInfo, parseDataset, replayClip } from "../public/js/recording.js";
 
 const args = process.argv.slice(2);
@@ -112,8 +112,13 @@ for (const row of detail.rows) {
 // the same alerts the app saw live. A mismatch means replay and app differ.
 let checked = 0;
 let mismatched = 0;
+let older = 0;
 for (const c of clips) {
   if (!c.settings || !Array.isArray(c.liveAlerts)) continue;
+  if ((c.detectorVersion || 1) !== DETECTOR_VERSION) {
+    older++;
+    continue;
+  }
   checked++;
   if (replayClip(c, settingsFor(c.settings)).alerts.length !== c.liveAlerts.length) mismatched++;
 }
@@ -124,4 +129,5 @@ if (checked) {
       : `\nReplay check: all ${checked} clips match what the app saw while recording.`,
   );
 }
+if (older) console.log(`\n${older} clip(s) were recorded with older detection rules, so their live alerts aren't compared. Their scores above use the current rules.`);
 console.log("");

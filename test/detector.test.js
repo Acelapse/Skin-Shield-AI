@@ -76,7 +76,7 @@ test("scratching with a single finger is caught through the motion meter", () =>
   const motion = new MotionMeter();
   let r;
   for (let i = 0; i < 30; i++) {
-    const wobble = (i % 2 ? 1 : -1) * 0.006;
+    const wobble = (i % 2 ? 1 : -1) * 0.012;
     r = evaluateFrame(face, [makeHand({ x: 0.45 + wobble, y: 0.52 }, { pinch: false })], DEFAULT_SETTINGS, 1, motion, i * 33);
   }
   assert.ok(r.score >= DEFAULT_SETTINGS.threshold, `scratch score ${r.score}`);

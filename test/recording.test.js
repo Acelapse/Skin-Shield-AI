@@ -20,7 +20,7 @@ function makeClip({ label, expected, seconds = 4, hand, area = null, faceEvery =
 
 const pinchChin = () => makeHand({ x: 0.5, y: 0.62 });
 const restingOpen = () => makeHand({ x: 0.46, y: 0.6 }, { pinch: false });
-const scratch = (i) => makeHand({ x: 0.45 + (i % 2 ? 0.006 : -0.006), y: 0.52 }, { pinch: false });
+const scratch = (i) => makeHand({ x: 0.45 + (i % 2 ? 0.012 : -0.012), y: 0.52 }, { pinch: false });
 const awayHand = () => makeHand({ x: 0.9, y: 0.4 });
 const settings = settingsFor({ sensitivity: 6, dwell: 1.5, cooldown: 10 });
 
