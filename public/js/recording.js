@@ -57,12 +57,15 @@ export function unpackFrame(frame, faceIndices = FACE_POINTS_USED) {
 
 // Runs a clip through the same pipeline as the live app. Returns the alerts the
 // detector would have raised, with times relative to the start of the clip.
-export function replayClip(clip, settings) {
+// With `explain`, also summarises which signals were behind the flagged frames.
+export function replayClip(clip, settings, { explain = false } = {}) {
   const memory = new FaceMemory();
   const motion = new MotionMeter();
   const tracker = new PickingTracker(settings);
   const alerts = [];
   let peak = 0;
+  const ex = explain ? { frames: 0, withFace: 0, withHands: 0, flagged: 0, byPinch: 0, sums: {} } : null;
+  const add = (k, v) => (ex.sums[k] = (ex.sums[k] || 0) + v);
   for (const frame of clip.frames) {
     const { face: raw, hands } = unpackFrame(frame, clip.faceIndices);
     const face = memory.update(raw, hands.length > 0, frame.t);
@@ -70,8 +73,37 @@ export function replayClip(clip, settings) {
     peak = Math.max(peak, result.score);
     const out = tracker.push(result.score, result.zone, frame.t);
     if (out.alert) alerts.push({ t: frame.t, zone: out.alert.zone });
+    if (ex) {
+      ex.frames++;
+      if (raw) ex.withFace++;
+      if (hands.length) ex.withHands++;
+      if (result.score >= settings.threshold) {
+        const i = result.hands.indexOf(result.hands.reduce((a, b) => (b.score > a.score ? b : a)));
+        const r = result.hands[i].reasons;
+        const h = hands[i];
+        const aspect = clip.aspect || 4 / 3;
+        const d2 = (a, b) => Math.hypot((a.x - b.x) * aspect, a.y - b.y);
+        const d3 = (a, b) => Math.hypot((a.x - b.x) * aspect, a.y - b.y, (a.z - b.z) * aspect);
+        const palm = d2(h[0], h[9]) || 1e-6;
+        ex.flagged++;
+        if (r.pinch >= r.pointing) ex.byPinch++;
+        add("pinch", r.pinch);
+        add("fidget", r.fidget);
+        add("inside", -r.edgeDist);
+        add("depthRatio", r.depthRatio);
+        add("gap2d", Math.min(d2(h[4], h[8]), d2(h[4], h[12])) / palm);
+        add("gap3d", Math.min(d3(h[4], h[8]), d3(h[4], h[12])) / palm);
+        // How spread the four fingertips are: bunched (fist, resting) vs open.
+        add("spread", (d2(h[8], h[20]) + d2(h[8], h[16])) / 2 / palm);
+        add(`zone:${result.zone}`, 1);
+      }
+    }
   }
-  return { alerts, peakScore: peak };
+  if (ex) {
+    ex.mean = {};
+    for (const [k, v] of Object.entries(ex.sums)) ex.mean[k] = ex.flagged ? v / ex.flagged : null;
+  }
+  return { alerts, peakScore: peak, explain: ex };
 }
 
 // Scores a set of clips at one group of settings.

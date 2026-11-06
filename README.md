@@ -70,7 +70,7 @@ To compare every sensitivity level at once, click **Export**, save the file into
 npm run evaluate
 ```
 
-It prints the catch rate, false alarms, time to alert and how often the face area was named correctly at sensitivities 1 to 10, recommends a level, and lists which clips were missed. Options: `--sensitivity 7` for per-clip detail at one level, `--dwell 2`, `--no-mouth`, `--no-pinch`. The `recordings/` folder is ignored by git.
+It prints the catch rate, false alarms, time to alert and how often the face area was named correctly at sensitivities 1 to 10, recommends a level, and lists which clips were missed. Options: `--sensitivity 7` for per-clip detail at one level, `--explain` to show which signals (pinch, fidgeting, position, hand size) were behind each clip's alerts, `--dwell 2`, `--no-mouth`, `--no-pinch`. The `recordings/` folder is ignored by git.
 
 The same recordings can later be used as training data if the hand-written detection rules are replaced with a trained model.
 

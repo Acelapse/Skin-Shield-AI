@@ -14,7 +14,7 @@ import { settingsFor } from "../public/js/detector.js";
 import { evaluateClips, labelInfo, parseDataset, replayClip } from "../public/js/recording.js";
 
 const args = process.argv.slice(2);
-const opts = { sensitivity: null, dwell: 1.5, cooldown: 10, includeMouth: true, requirePinch: true };
+const opts = { explain: false, sensitivity: null, dwell: 1.5, cooldown: 10, includeMouth: true, requirePinch: true };
 const paths = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -23,8 +23,9 @@ for (let i = 0; i < args.length; i++) {
   else if (a === "--cooldown") opts.cooldown = Number(args[++i]);
   else if (a === "--no-mouth") opts.includeMouth = false;
   else if (a === "--no-pinch") opts.requirePinch = false;
+  else if (a === "--explain") opts.explain = true;
   else if (a === "--help" || a === "-h") {
-    console.log("Usage: npm run evaluate -- [files or folders] [--sensitivity N] [--dwell S] [--cooldown S] [--no-mouth] [--no-pinch]");
+    console.log("Usage: npm run evaluate -- [files or folders] [--sensitivity N] [--dwell S] [--cooldown S] [--no-mouth] [--no-pinch] [--explain]");
     process.exit(0);
   } else paths.push(a);
 }
@@ -93,6 +94,18 @@ for (const row of detail.rows) {
   const verdict = row.correct ? "ok  " : row.expected === "alert" ? "MISS" : "FALSE";
   const what = row.alerts.length ? `${row.alerts.length} alert(s), first at ${(row.firstAlertMs / 1000).toFixed(1)} s, area ${row.alerts[0].zone}` : `no alert (peak score ${row.peakScore.toFixed(2)})`;
   console.log(`  ${pad(verdict, 5)} ${pad(name.slice(0, 48), 49)} ${what}`);
+  if (opts.explain) {
+    const ex = replayClip(c, settingsFor({ ...opts, sensitivity: level }), { explain: true }).explain;
+    const m = ex.mean;
+    const f = (v, d = 2) => (v === null || v === undefined ? "-" : v.toFixed(d));
+    const p100 = (n) => `${Math.round((n / Math.max(1, ex.frames)) * 100)}%`;
+    console.log(`        face found ${p100(ex.withFace)}, hand found ${p100(ex.withHands)}, flagged as picking ${p100(ex.flagged)} of ${ex.frames} frames`);
+    if (ex.flagged) {
+      const zones = Object.entries(m).filter(([k]) => k.startsWith("zone:")).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k.slice(5)} ${Math.round(v * 100)}%`).join(", ");
+      console.log(`        when flagged: pinch-driven ${Math.round((ex.byPinch / ex.flagged) * 100)}% | pinch ${f(m.pinch)} | fidget ${f(m.fidget)} | inside face ${f(m.inside)} | hand/face size ${f(m.depthRatio)}`);
+      console.log(`        thumb gap 2D ${f(m.gap2d)} vs 3D ${f(m.gap3d)} palms | fingertip spread ${f(m.spread)} palms | areas: ${zones}`);
+    }
+  }
 }
 
 // 3. Sanity check: replaying with the settings used while recording should give
