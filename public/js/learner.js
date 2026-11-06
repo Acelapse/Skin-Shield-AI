@@ -154,7 +154,9 @@ export function createLearner({ getPrefs, applyPrefs, getContext, recorder }) {
     render("Learning from your examples...");
     worker ??= new Worker(new URL("./learn-worker.js", import.meta.url), { type: "module" });
     const id = ++jobId;
-    const prefs = getPrefs();
+    // Always tune the picking detector, even while "Alert on any touch" is on,
+    // so it's ready when that's switched off.
+    const prefs = { ...getPrefs(), anyTouch: false };
     worker.onmessage = (e) => {
       if (e.data.id !== id) return;
       if ("progress" in e.data) return render(`Learning from your examples... ${Math.round(e.data.progress * 100)}%`);
@@ -211,7 +213,7 @@ export function createLearner({ getPrefs, applyPrefs, getContext, recorder }) {
     els.status.textContent = clips.length
       ? `${n(clips.length, "example")}: ${n(count("confirmed"), "confirmed alert")}, ${n(count("false-alarm"), "false alarm")}, ${count("missed")} missed, ${n(recorded, "recorded clip")}.`
       : "No examples yet. Answer alerts, press Missed one, or record test clips.";
-    els.values.textContent = `Sensitivity ${p.sensitivity}, hand shape ${p.spreadMin}`;
+    els.values.textContent = `Sensitivity ${p.sensitivity}, hand shape ${p.spreadMin}` + (p.anyTouch ? " (used again when Alert on any touch is off)" : "");
     els.result.textContent =
       busy ||
       (lastResult?.applied

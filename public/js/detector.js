@@ -76,18 +76,31 @@ export const DEFAULT_SETTINGS = {
 
 // Maps the app's user-facing settings to detector settings. Shared by the app and
 // the evaluation script so both score recordings identically.
-export function settingsFor({ sensitivity = 6, dwell = 1.5, cooldown = 10, includeMouth = true, requirePinch = true, spreadMin = DEFAULT_SETTINGS.spreadMin } = {}) {
+export function settingsFor({
+  sensitivity = 6,
+  dwell = 1.5,
+  cooldown = 10,
+  includeMouth = true,
+  requirePinch = true,
+  spreadMin = DEFAULT_SETTINGS.spreadMin,
+  anyTouch = false,
+} = {}) {
   return {
     ...DEFAULT_SETTINGS,
     spreadMin,
-    threshold: 0.85 - (sensitivity - 1) * 0.055,
+    threshold: anyTouch ? 0.5 : 0.85 - (sensitivity - 1) * 0.055,
     proximity: 0.06 + (sensitivity - 1) * 0.015,
-    dwellMs: dwell * 1000,
+    // Any-touch mode alerts almost at once; the short wait only stops a single
+    // glitchy tracking frame from setting it off.
+    dwellMs: anyTouch ? ANY_TOUCH_DWELL_MS : dwell * 1000,
     cooldownMs: cooldown * 1000,
     includeMouth,
     requirePinch,
+    anyTouch,
   };
 }
+
+export const ANY_TOUCH_DWELL_MS = 250;
 
 // The face model can lose the face while a hand covers it. While hands are in
 // view, keep using the last face seen for a short while.
@@ -185,6 +198,26 @@ export function scoreHand(handLandmarks, face, settings = DEFAULT_SETTINGS, aspe
   const s = { ...DEFAULT_SETTINGS, ...settings };
   const h = toPixelSpace(handLandmarks, aspect);
   const fw = face.width || 1e-6;
+
+  // Any-touch mode: any part of the hand overlapping the face outline counts,
+  // whatever the hand is doing. No posture, hand-shape, depth or mouth checks.
+  if (s.anyTouch) {
+    let edge = Infinity;
+    let deepest = h[0];
+    for (const p of h) {
+      const d = signedDistToPolygon(p, face.oval) / fw;
+      if (d < edge) {
+        edge = d;
+        deepest = p;
+      }
+    }
+    return {
+      score: edge <= 0 ? 1 : 0,
+      zone: nearestZone(deepest, face),
+      tip: { x: deepest.x / aspect, y: deepest.y },
+      reasons: { anyTouch: true, edgeDist: edge, fidget },
+    };
+  }
 
   // 1. Posture. Picking and squeezing is done with the thumb against the index
   // or middle finger, so the pinch point is where the skin is being worked.

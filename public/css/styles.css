@@ -291,3 +291,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: 
 }
 @media (prefers-color-scheme: dark) { .toast { background: #e8e6e3; color: #1c1f22; } }
 .btn-small { padding: 5px 10px; font-size: 13px; white-space: nowrap; }
+
+.settings .strong { font-weight: 600; }
+.settings .setting-note { margin: -6px 0 0 24px; }
+.settings label.is-disabled { opacity: 0.45; }

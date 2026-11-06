@@ -51,6 +51,7 @@ function loadPrefs() {
     showOverlay: true,
     learn: true,
     autoLearn: true,
+    anyTouch: false,
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") };
@@ -83,6 +84,17 @@ function syncSettingsForm() {
     }
   }
   settingRenders.forEach((r) => r());
+  syncAnyTouch();
+}
+
+// In any-touch mode the picking-specific options don't apply, so grey them out.
+function syncAnyTouch() {
+  for (const name of ["sensitivity", "dwell", "includeMouth", "requirePinch"]) {
+    const el = $("settings").elements[name];
+    el.disabled = prefs.anyTouch;
+    el.closest("label").classList.toggle("is-disabled", prefs.anyTouch);
+  }
+  $("anyTouchNote").hidden = !prefs.anyTouch;
 }
 
 function bindSettings() {
@@ -102,6 +114,11 @@ function bindSettings() {
         render();
         savePrefs();
         tracker.update(detectorSettings());
+        if (el.name === "anyTouch") {
+          syncAnyTouch();
+          tracker.reset();
+          motion.clear();
+        }
         learner?.render();
         if (el.name === "notify" && el.checked) await requestNotifications();
       });
@@ -564,7 +581,7 @@ const recorder = createRecorder({
   getContext: () => ({
     running,
     prefs: { ...prefs },
-    settings: { sensitivity: prefs.sensitivity, spreadMin: prefs.spreadMin, dwell: prefs.dwell, cooldown: prefs.cooldown, includeMouth: prefs.includeMouth, requirePinch: prefs.requirePinch },
+    settings: { sensitivity: prefs.sensitivity, spreadMin: prefs.spreadMin, dwell: prefs.dwell, cooldown: prefs.cooldown, includeMouth: prefs.includeMouth, requirePinch: prefs.requirePinch, anyTouch: prefs.anyTouch },
     aspect: video.videoWidth / video.videoHeight || 4 / 3,
     camera: $("cameraSelect").selectedOptions[0]?.textContent || "",
   }),
@@ -593,7 +610,7 @@ learner = createLearner({
   getContext: () => ({
     aspect: video.videoWidth / video.videoHeight || 4 / 3,
     camera: $("cameraSelect").selectedOptions[0]?.textContent || "",
-    settings: { sensitivity: prefs.sensitivity, spreadMin: prefs.spreadMin, dwell: prefs.dwell, cooldown: prefs.cooldown, includeMouth: prefs.includeMouth, requirePinch: prefs.requirePinch },
+    settings: { sensitivity: prefs.sensitivity, spreadMin: prefs.spreadMin, dwell: prefs.dwell, cooldown: prefs.cooldown, includeMouth: prefs.includeMouth, requirePinch: prefs.requirePinch, anyTouch: prefs.anyTouch },
   }),
   recorder,
 });

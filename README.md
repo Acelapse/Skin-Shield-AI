@@ -42,6 +42,7 @@ Each episode is labelled with the area being touched (forehead, nose, cheeks, mo
 
 ## Settings
 
+- **Alert on any touch**: the simplest, strictest mode. Alerts within a quarter of a second whenever any part of either hand overlaps your face, whatever the hand is doing. Sensitivity, the alert delay and the mouth and pinch options are paused while it's on (learning keeps tuning them in the background). Expect alerts for eating, chin resting and eye rubbing too; use Snooze for those times.
 - **Sensitivity**: lower for fewer false alarms, higher to catch subtler picking.
 - **Alert after**: how long picking must continue before you're nudged.
 - **Quiet time between alerts**.

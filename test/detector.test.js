@@ -7,6 +7,7 @@ import {
   evaluateFrame,
   MotionMeter,
   PickingTracker,
+  settingsFor,
 } from "../public/js/detector.js";
 import { makeFace, makeHand } from "./fixtures.js";
 
@@ -152,4 +153,32 @@ test("fingers around the nose with ring and little fingers curled in don't count
   const r = evaluateFrame(makeFace(), [noseSqueezeHand({ curled: true })], DEFAULT_SETTINGS);
   assert.equal(r.hands[0].reasons.squeeze, 0);
   assert.ok(r.score < DEFAULT_SETTINGS.threshold, `score ${r.score}`);
+});
+
+test("any-touch mode: any part of a hand overlapping the face counts", () => {
+  const anyTouch = settingsFor({ anyTouch: true });
+  const face = makeFace();
+  // An open, resting hand that the picking detector ignores...
+  const resting = [makeHand({ x: 0.46, y: 0.6 }, { pinch: false })];
+  assert.ok(evaluateFrame(face, resting, DEFAULT_SETTINGS).score < DEFAULT_SETTINGS.threshold);
+  // ...alerts in any-touch mode.
+  assert.equal(evaluateFrame(face, resting, anyTouch).score, 1);
+  // A hand only partly over the face (reaching down from above) still counts.
+  const wristOnly = makeHand({ x: 0.5, y: 0.3 }, { palm: 0.1 }); // fingertips above the face, palm over the forehead
+  assert.equal(evaluateFrame(face, [wristOnly], anyTouch).score, 1);
+  // A hand close to the camera in front of the face counts too (no depth check)...
+  assert.equal(evaluateFrame(face, [makeHand({ x: 0.45, y: 0.5 }, { palm: 0.35 })], anyTouch).score, 1);
+  // ...the mouth isn't excluded...
+  assert.equal(evaluateFrame(face, [makeHand({ x: 0.5, y: 0.565 })], { ...anyTouch, includeMouth: false }).score, 1);
+  // ...but a hand off the face doesn't.
+  assert.equal(evaluateFrame(face, [makeHand({ x: 0.9, y: 0.4 })], anyTouch).score, 0);
+});
+
+test("any-touch mode alerts after a quarter of a second, not the usual delay", () => {
+  const s = settingsFor({ anyTouch: true, dwell: 3 });
+  assert.equal(s.dwellMs, 250);
+  const t = new PickingTracker(s);
+  assert.equal(t.push(1, "chin", 0).alert, null);
+  assert.equal(t.push(1, "chin", 200).alert, null);
+  assert.ok(t.push(1, "chin", 267).alert);
 });

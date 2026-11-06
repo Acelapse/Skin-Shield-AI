@@ -87,6 +87,12 @@
         <section class="card">
           <h2>Settings</h2>
           <form id="settings" class="settings">
+            <label class="check strong"><input type="checkbox" name="anyTouch" /> Alert on any touch</label>
+            <p class="hint setting-note">Alerts whenever any part of a hand overlaps your face, whatever it's doing.</p>
+            <p class="hint setting-note" id="anyTouchNote" hidden>
+              On: sensitivity, alert delay, mouth and pinch options are paused. Eating, resting your chin and rubbing your
+              eyes will alert too; use Snooze when needed.
+            </p>
             <label>Sensitivity
               <input type="range" name="sensitivity" min="1" max="10" step="1" />
               <span class="out" data-for="sensitivity"></span>
